@@ -17,12 +17,38 @@ ACC_FULL_SCALE_4_G        = 0x08
 ACC_FULL_SCALE_8_G        = 0x10
 ACC_FULL_SCALE_16_G       = 0x18
 
+CALIBRATION               = [0] * 6
+
 def init():
     bus.write_byte_data(address, 27,   GYRO_FULL_SCALE_2000_DPS)
     bus.write_byte_data(address, 28,   ACC_FULL_SCALE_16_G)
     bus.write_byte_data(address, 0x37, 0x02)
 
     bus.write_byte_data(address, 0x0A, 0x01)
+
+    CALIBRATION = loadCalibData()
+
+def loadCalibData():
+    ret = [0, 1] * 3
+
+    data = open('./calib.dat', 'rb').read()
+    axes = data.split('\n')
+    for axis in axes:
+        field = axis.split('\t')
+
+        name = field[0]
+        if name == 'x':
+            idx = 0
+        else if name == 'y':
+            idx = 2
+        else if name == 'z':
+            idx = 4
+
+        ret[idx]   = field[1] # offset
+        ret[idx+1] = field[2] # scale
+
+    return ret
+
 
 def raw_to_int(msb, lsb):
     '''
@@ -49,13 +75,21 @@ def tick(prnt):
     ay = raw_to_int(raw[2], raw[3])
     az = raw_to_int(raw[4], raw[5])
 
+    # change units to G's
     ax *= (16.0/32768.0)
     ay *= (16.0/32768.0)
     az *= (16.0/32768.0)
 
-    az += (0.220358886719)
-    az *= 1.02126953125
 
+    # offset and scale data according to calibration
+    ax += CALIBRATION[0]
+    ax *= CALIBRATION[1]
+    ay += CALIBRATION[2]
+    ay *= CALIBRATION[3]
+    az += CALIBRATION[4]
+    az *= CALIBRATION[5]
+
+    # should equal 1 when under no acceleration
     amag = math.sqrt(math.pow(ax, 2) + math.pow(ay, 2) + math.pow(az, 2))
 
     gx = raw_to_int(raw[8], raw[9])

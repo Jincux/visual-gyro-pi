@@ -108,19 +108,42 @@ def doCalibration():
     print "Starting calibration..."
 
     # Z direction
-    raw_input('Align Positive-Z direction: ')
+    zData = calibAxis(2, 'Z')
+
+    # X direction
+    xData = calibAxis(0, 'X')
+
+    # Y direction
+    yData = calibAxis(1, 'Y')
+
+    # Write Calibration File
+    f = open('./calib.dat','w')
+    f.write('x\t' + str(xData[0]) + '\t' + str(xData[1]) + '\n');
+    f.write('y\t' + str(yData[0]) + '\t' + str(yData[1]) + '\n');
+    f.write('z\t' + str(zData[0]) + '\t' + str(zData[1]) + '\n');
+    f.close()
+
+    print "\n\nCalibration Complete."
+
+    #print "\n\n"
+    #print "Z Range          : %d" % str(zRange)  # range spanned
+    #print "Z Offset         : %d" % str(zOffset) # midpoint
+    #print "Z Scaling Factor : %d" % str(zScale)  # factor to scale to 2g range
+
+def calibAxis(idx, name):
+    raw_input('Align Positive-' + str(name) + ' direction: ')
     res = runCalibAvg()
-    posZ = res[2]
+    pos = res[idx]
 
-    raw_input('Align Negative-Z direction: ')
+    raw_input('Align Negative-' + str(name) + ' direction: ')
     res = runCalibAvg()
-    negZ = res[2]
+    neg = res[idx]
 
-    print "\n\n"
-    print "Z Range          : %d" % str(abs(posZ)+abs(negZ))     # range spanned
-    print "Z Offset         : %d" % str((posZ+negZ)/2)           # midpoint
-    print "Z Scaling Factor : %d" % str((abs(posZ)+abs(negZ))/2) # factor to scale to 2g range
+    Range  = abs(pos)+abs(neg)
+    Offset = (pos+neg)/2
+    Scale  = (abs(pos)+abs(neg))/2
 
+    return [Offset, Scale];
 
 # Execution
 
