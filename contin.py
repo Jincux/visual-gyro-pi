@@ -17,7 +17,7 @@ ACC_FULL_SCALE_4_G        = 0x08
 ACC_FULL_SCALE_8_G        = 0x10
 ACC_FULL_SCALE_16_G       = 0x18
 
-CALIBRATION               = [0] * 6
+CalibrationMatrix         = None
 
 def init():
     bus.write_byte_data(address, 27,   GYRO_FULL_SCALE_2000_DPS)
@@ -26,28 +26,26 @@ def init():
 
     bus.write_byte_data(address, 0x0A, 0x01)
 
-    CALIBRATION = loadCalibData()
+    CalibrationMatrix = loadCalibData()
 
 def loadCalibData():
     ret = [0, 1] * 3
 
     data = open('./calib.dat', 'rb').read()
     axes = data.split('\n')
-    for axis in axes:
-        field = axis.split('\t')
 
-        name = field[0]
-        if name == 'x':
-            idx = 0
-        else if name == 'y':
-            idx = 2
-        else if name == 'z':
-            idx = 4
+    newMatrix = [[0 for x in range(3)] for y in range(3)]
+    ct = 0
 
-        ret[idx]   = field[1] # offset
-        ret[idx+1] = field[2] # scale
+    for i in len(axes):
+        axis = axes[i]
+        fields = axis.split('\t')
 
-    return ret
+        for j in len(fields):
+            field = fields[i]
+            newMatrix[i][j] = field
+
+    return newMatrix
 
 
 def raw_to_int(msb, lsb):
@@ -76,18 +74,22 @@ def tick(prnt):
     az = raw_to_int(raw[4], raw[5])
 
     # change units to G's
-    ax *= (16.0/32768.0)
-    ay *= (16.0/32768.0)
-    az *= (16.0/32768.0)
+    axRaw *= (16.0/32768.0)
+    ayRaw *= (16.0/32768.0)
+    azRaw *= (16.0/32768.0)
 
+    rawVec = [axRaw, ayRaw, azRaw]
 
-    # offset and scale data according to calibration
-    ax += CALIBRATION[0]
-    ax *= CALIBRATION[1]
-    ay += CALIBRATION[2]
-    ay *= CALIBRATION[3]
-    az += CALIBRATION[4]
-    az *= CALIBRATION[5]
+    # apply calibration matrix
+    ax = 0.0
+    ay = 0.0
+    az = 0.0
+
+    for x in range(3):
+        ax += rawVec[x] * CalibrationMatrix[x][0]
+        ay += rawVec[x] * CalibrationMatrix[x][1]
+        az += rawVec[x] * CalibrationMatrix[x][2]
+
 
     # should equal 1 when under no acceleration
     amag = math.sqrt(math.pow(ax, 2) + math.pow(ay, 2) + math.pow(az, 2))

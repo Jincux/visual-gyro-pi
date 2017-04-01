@@ -17,6 +17,8 @@ ACC_FULL_SCALE_4_G        = 0x08
 ACC_FULL_SCALE_8_G        = 0x10
 ACC_FULL_SCALE_16_G       = 0x18
 
+CalibrationMatrix = None
+
 def init():
     bus.write_byte_data(address, 27,   GYRO_FULL_SCALE_2000_DPS)
     bus.write_byte_data(address, 28,   ACC_FULL_SCALE_16_G)
@@ -107,43 +109,93 @@ def runCalibAvg():
 def doCalibration():
     print "Starting calibration..."
 
+    Matrix = [[0 for x in range(3)] for y in range(3)]
+
     # Z direction
-    zData = calibAxis(2, 'Z')
+    zCol = getRawAxis('Z')
+
+    Matrix[2][0] = zCol[0]
+    Matrix[2][1] = zCol[1]
+    Matrix[2][2] = zCol[2]
 
     # X direction
-    xData = calibAxis(0, 'X')
+    xCol = getRawAxis('X')
+
+    Matrix[0][0] = xCol[0]
+    Matrix[0][1] = xCol[1]
+    Matrix[0][2] = xCol[2]
 
     # Y direction
-    yData = calibAxis(1, 'Y')
+    yCol = getRawAxis('Y')
 
-    # Write Calibration File
+    Matrix[1][0] = yCol[0]
+    Matrix[1][1] = yCol[1]
+    Matrix[1][2] = yCol[2]
+
+
+    # Calculate Matrix Inverse
+    CalibrationMatrix = invertMatrix(Matrix)
+
     f = open('./calib.dat','w')
-    f.write('x\t' + str(xData[0]) + '\t' + str(xData[1]) + '\n');
-    f.write('y\t' + str(yData[0]) + '\t' + str(yData[1]) + '\n');
-    f.write('z\t' + str(zData[0]) + '\t' + str(zData[1]) + '\n');
+    for y in range(3):
+        first = True
+
+        for x in range(3):
+            if not first:
+                f.write('\t')
+            else:
+                first = False
+
+            f.write(CalibrationMatrix[x][y])
+
+        f.write('\n')
+
     f.close()
+
 
     print "\n\nCalibration Complete."
 
-    #print "\n\n"
-    #print "Z Range          : %d" % str(zRange)  # range spanned
-    #print "Z Offset         : %d" % str(zOffset) # midpoint
-    #print "Z Scaling Factor : %d" % str(zScale)  # factor to scale to 2g range
 
-def calibAxis(idx, name):
+def invertMatrix(Matrix):
+    newMatrix = [[0 for x in range(3)] for y in range(3)]
+    det = 0.0
+    for x in range(3):
+        for y in range(3):
+            # * x x
+            # x 1 2
+            # x 3 4
+
+            # * = (1*4)-(2*3)
+            termA = ((Matrix[(x+1) % 3][(y+1) % 3]) * (Matrix[(x+2) % 3][(y+2) % 3]))
+            termB = ((Matrix[(x+2) % 3][(y+1) % 3]) * (Matrix[(x+1) % 3][(y+2) % 3]))
+
+            newMatrix[x][y] = termA - termB
+
+            det += (Matrix[x][y]) * (termA - termB)
+            #while we're at it, we need the det
+
+    # no need to apply neg/pos, modulus handles directionality and thus
+    # polarity
+    # newMatrix is currently the matrix of minors
+
+    Matrix = newMatrix
+    newMatrix = [[0 for x in range(3)] for y in range(3)]
+
+    # transpose
+    for x in range(3):
+        for y in range(3):
+            newMatrix[x][y] = Matrix[y][x] / (det)
+
+    # newMatrix is now the inverse of the given Matric
+
+    return newMatrix
+
+
+def getRawAxis(name):
     raw_input('Align Positive-' + str(name) + ' direction: ')
     res = runCalibAvg()
-    pos = res[idx]
 
-    raw_input('Align Negative-' + str(name) + ' direction: ')
-    res = runCalibAvg()
-    neg = res[idx]
-
-    Range  = abs(pos)+abs(neg)
-    Offset = (pos+neg)/2
-    Scale  = (abs(pos)+abs(neg))/2
-
-    return [Offset, Scale];
+    return [res[0], res[1], res[2]];
 
 # Execution
 
